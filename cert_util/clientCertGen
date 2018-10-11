@@ -1,0 +1,26 @@
+#!/bin/bash
+# generate a private key and CSR (Certificate Signing Request)
+# sign the certificate with your custom root CA (Certificate Authority)
+
+if [ $# -ne 1 ]; then
+    echo $0: usage: clientCertGen certName
+    exit 1
+fi
+
+openssl genrsa -out $1.key 2048
+
+openssl req \
+  -new \
+  -key $1.key \
+  -out $1.csr \
+  -subj "/C=DE/ST=Sachsen/L=Dresden/O=TU Dresden/OU=Faculty of Computer Science/CN=aamcs/emailAddress=info@aamcs.com"
+
+openssl x509 \
+  -req \
+  -in $1.csr \
+  -CA MyRootCA.pem -CAkey MyRootCA.key -CAcreateserial \
+  -out $1.pem \
+  -days 1024 \
+  -sha256 \
+  -extfile clientOpenssl.ext
+

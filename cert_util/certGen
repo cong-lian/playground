@@ -1,0 +1,21 @@
+#!/bin/bash
+# generate a private key and CSR (Certificate Signing Request)
+# sign the certificate with your custom root CA (Certificate Authority)
+
+openssl genrsa -out localhost.key 2048
+
+openssl req \
+  -new \
+  -key localhost.key \
+  -out localhost.csr \
+  -subj "/C=DE/ST=Sachsen/L=Dresden/O=TU Dresden/OU=Faculty of Computer Science/CN=aamcs/emailAddress=info@aamcs.com"
+
+openssl x509 \
+  -req \
+  -in localhost.csr \
+  -CA MyRootCA.pem -CAkey MyRootCA.key -CAcreateserial \
+  -out localhost.pem \
+  -days 1024 \
+  -sha256 \
+  -extfile openssl.ext
+

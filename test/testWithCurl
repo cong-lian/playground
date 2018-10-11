@@ -1,0 +1,83 @@
+#!/bin/bash
+# to test aamcs_server with curl command line tool
+# modify the content if necessary
+
+:<<'END'
+echo
+# options request
+echo "send OPTIONS request"
+curl  -X OPTIONS \
+      -i \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      --cacert cert_util/MyRootCA.pem \
+      --cert cert_util/client1.pem \
+      --key cert_util/client1.key \
+      https://localhost:1338
+
+echo
+# head request
+echo "send HEAD request"
+curl  -X HEAD \
+      -I \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      --cacert cert_util/MyRootCA.pem \
+      --cert cert_util/client1.pem \
+      --key cert_util/client1.key \
+      https://localhost:1338/
+
+echo
+END
+# post request
+echo "send POST request"
+curl  -X POST \
+      -i \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      -d '{"key":"0","previous":"0"}' \
+      --cacert cert_util/MyRootCA.pem \
+      --cert cert_util/client1.pem \
+      --key cert_util/client1.key \
+      https://localhost:1338/echo
+
+echo
+# get request
+echo "send GET request"
+curl  -X GET \
+      -i \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      -d '{"key":"0","previous":"0"}' \
+      --cacert cert_util/MyRootCA.pem \
+      --cert cert_util/client1.pem \
+      --key cert_util/client1.key \
+      https://localhost:1338
+
+:<<'END'
+echo
+# put request
+echo "send PUT request"
+curl  -X PUT \
+      -i \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      -d '{"key":"0","previous":"0"}' \
+      --cacert cert_util/MyRootCA.pem \
+      --cert cert_util/client1.pem \
+      --key cert_util/client1.key \
+      https://localhost:1338
+
+echo
+# delete request
+echo "send DELETE request"
+curl  -X DELETE \
+      -i \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      -d '{"key":"0","previous":"0"}' \
+      --cacert cert_util/MyRootCA.pem \
+      --cert cert_util/client1.pem \
+      --key cert_util/client1.key \
+      https://localhost:1338
+END
