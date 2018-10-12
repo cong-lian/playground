@@ -99,11 +99,15 @@ fn echo(req: Request<Body>) -> ResponseFuture {
                 .unwrap(),
         )),
         // Echo service route.
-        (Method::POST, "/echo") => Box::new(future::ok(
-            Response::builder()
-                .body(body)
-                .unwrap(),
-        )),
+        (Method::POST, "/echo") => {
+            let entire_body = body.concat2();
+            let res = entire_body.and_then(|body| {
+                println!("Body:\n{}", str::from_utf8(&body).unwrap());
+                println!("\n");
+                future::ok(Response::builder().body(Body::from("/echo\n")).unwrap())
+            });
+            Box::new(res)
+        }
         // Catch-all 404.
         _ => Box::new(future::ok(
             Response::builder()
