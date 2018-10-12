@@ -1,0 +1,2 @@
+#!/bin/bash
+cargo run -p tls_client https://localhost:1338 cert_util/client1.pem cert_util/client1.key cert_util/MyRootCA.pem

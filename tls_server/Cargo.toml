@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Cong Lian <liancong22@gmail.com>"]
 
 [dependencies]
-futures = "0.1.21"
+futures = "0.1"
 http = "0.1"
 hyper = "0.12"
 rustls = "0.13"

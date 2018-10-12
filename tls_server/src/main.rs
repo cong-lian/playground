@@ -45,9 +45,9 @@ fn run_server() -> io::Result<()> {
     // Build TLS configuration.
     let tls_cfg = {
         // Load public certificate.
-        let certs = load_certs("../cert_util/localhost.pem")?;
+        let certs = load_certs("cert_util/localhost.pem")?;
         // Load private key.
-        let key = load_private_key("../cert_util/localhost.key")?;
+        let key = load_private_key("cert_util/localhost.key")?;
         // Do not use client certificate authentication.
         let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
         // Select a certificate to use.
@@ -90,12 +90,6 @@ type ResponseFuture = Box<Future<Item = Response<Body>, Error = hyper::Error> + 
 fn echo(req: Request<Body>) -> ResponseFuture {
     let (parts, body) = req.into_parts();
     println!("{:?}", parts);
-    let _ = body.concat2().and_then(|body| {
-        let stringify = str::from_utf8(&body).unwrap();
-        println!("Length: {}", stringify.len());
-        println!("Body: {}", stringify);
-        future::ok(())
-    });
 
     match (parts.method, parts.uri.path()) {
         // Help route.
@@ -107,7 +101,7 @@ fn echo(req: Request<Body>) -> ResponseFuture {
         // Echo service route.
         (Method::POST, "/echo") => Box::new(future::ok(
             Response::builder()
-                .body(Body::from("POST response\n"))
+                .body(body)
                 .unwrap(),
         )),
         // Catch-all 404.

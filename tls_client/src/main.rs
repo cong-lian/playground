@@ -1,65 +1,125 @@
 #![deny(warnings)]
+
+#[macro_use]
+extern crate serde_derive;
+
+extern crate futures;
 extern crate hyper;
-extern crate pretty_env_logger;
+extern crate hyper_rustls;
+extern crate rustls;
+extern crate tls_client;
+extern crate tokio_core;
 
+extern crate serde_json;
+use hyper::{Body, Request, Uri};
+use hyper::rt::Future;
+use futures::Stream;
+use futures::future;
 use std::env;
-use std::io::{self, Write};
+use std::str::FromStr;
+use tls_client::start_client;
 
-use hyper::Client;
-use hyper::rt::{self, Future, Stream};
+// the same as AdvancedAsynchronousMonotonicCounter
+// just for putting it into HTTP body as json format
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AdvancedAsynchronousMonotonicCounter2 {
+    pub current: usize, // current value, initialized with 0, strictly increasing, cannot be rolled back
+                        // need more fields
+                        // ToDo
+}
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct JsonToServer {
+    pub key: usize,
+    pub previous: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct JsonFromServer {
+    pub key: usize,
+    pub counter: AdvancedAsynchronousMonotonicCounter2,
+}
 fn main() {
-    pretty_env_logger::init();
-
-    // Some simple CLI args requirements...
+    // First parameter is target URL (mandatory)
     let url = match env::args().nth(1) {
-        Some(url) => url,
+        Some(ref url) => Uri::from_str(url).expect("well-formed URI"),
         None => {
-            println!("Usage: client <url>");
+            println!("Usage: aamcs_client url certificate private_key ca_store");
             return;
         }
     };
 
-    // HTTPS requires picking a TLS implementation, so give a better
-    // warning if the user tries to request an 'https' URL.
-    let url = url.parse::<hyper::Uri>().unwrap();
-    if url.scheme_part().map(|s| s.as_ref()) != Some("http") {
-        println!("This example only works with 'http' URLs.");
-        return;
+    // Second parameter is client certificate (mandatory)
+    let cert = match env::args().nth(2) {
+        Some(ref path) => {
+            println!("client certificate: {}", path);
+            path.to_owned()
+        }
+        None => {
+            println!("Please provide certificate");
+            println!("Usage: aamcs_client url certificate private_key ca_store");
+            return;
+        }
+    };
+
+    // Third parameter is client private key (mandatory)
+    let rsa = match env::args().nth(3) {
+        Some(ref path) => {
+            println!("private key: {}", path);
+            path.to_owned()
+        }
+        None => {
+            println!("Please provide private_key");
+            println!("Usage: aamcs_client url certificate private_key ca_store");
+            return;
+        }
+    };
+
+    // Fourth parameter is custom Root-CA store (mandatory)
+    let ca = match env::args().nth(4) {
+        Some(ref path) => {
+            println!("Root-CA store: {}", path);
+            path.to_owned()
+        }
+        None => {
+            println!("Please provide Root-CA store");
+            println!("Usage: aamcs_client url certificate private_key ca_store");
+            return;
+        }
+    };
+    // type `hyper::Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>`
+    let client = start_client(&cert, &rsa, &ca);
+
+    // a GET request
+    // type `hyper::client::ResponseFuture`
+    let get = client
+        .request(
+            Request::get(url.clone())
+                .header("Content-Type", "application/json")
+                .body({
+                    let json_to_server: JsonToServer = JsonToServer {
+                        key: 0,
+                        previous: 0,
+                    };
+                    let serialized = serde_json::to_string(&json_to_server).unwrap();
+                    Body::from(serialized)
+                }).unwrap(),
+        ).and_then(|res| {
+            println!("received a response :");
+            println!("Status: {}", res.status());
+            println!("Headers:\n{:#?}", res.headers());
+
+            // issue: empty body, need to fix, get the complete body correctly
+            // ToDo
+            let entire_body = res.into_body().concat2();
+            println!("Body:\n{:#?}", entire_body);
+            println!("\n");
+            future::ok(())
+        });
+
+    let mut core = tokio_core::reactor::Core::new().unwrap();
+    if let Err(err) = core.run(get) {
+        println!("FAILED: {}", err);
+        std::process::exit(1)
     }
-
-    // Run the runtime with the future trying to fetch and print this URL.
-    //
-    // Note that in more complicated use cases, the runtime should probably
-    // run on its own, and futures should just be spawned into it.
-    rt::run(fetch_url(url));
-}
-
-fn fetch_url(url: hyper::Uri) -> impl Future<Item=(), Error=()> {
-    let client = Client::new();
-
-    client
-        // Fetch the url...
-        .get(url)
-        // And then, if we get a response back...
-        .and_then(|res| {
-            println!("Response: {}", res.status());
-            println!("Headers: {:#?}", res.headers());
-
-            // The body is a stream, and for_each returns a new Future
-            // when the stream is finished, and calls the closure on
-            // each chunk of the body...
-            res.into_body().for_each(|chunk| {
-                io::stdout().write_all(&chunk)
-                    .map_err(|e| panic!("example expects stdout is open, error={}", e))
-            })
-        })
-        // If all good, just tell the user...
-        .map(|_| {
-            println!("\n\nDone.");
-        })
-        // If there was an error, let the user know...
-        .map_err(|err| {
-            eprintln!("Error {}", err);
-        })
 }

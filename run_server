@@ -1,0 +1,2 @@
+#!/bin/bash
+cargo run -p tls_server
