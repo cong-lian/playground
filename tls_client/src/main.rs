@@ -11,12 +11,13 @@ extern crate tls_client;
 extern crate tokio_core;
 
 extern crate serde_json;
-use hyper::{Body, Request, Uri};
-use hyper::rt::Future;
-use futures::Stream;
 use futures::future;
+use futures::Stream;
+use hyper::rt::Future;
+use hyper::{Body, Request, Uri};
 use std::env;
 use std::str::FromStr;
+use std::str;
 use tls_client::start_client;
 
 // the same as AdvancedAsynchronousMonotonicCounter
@@ -108,11 +109,12 @@ fn main() {
             println!("received a response :");
             println!("Status: {}", res.status());
             println!("Headers:\n{:#?}", res.headers());
-
+            res.into_body().concat2()
+        }).and_then(|body| {
             // issue: empty body, need to fix, get the complete body correctly
             // ToDo
-            let entire_body = res.into_body().concat2();
-            println!("Body:\n{:#?}", entire_body);
+            // fixed 2018/10/12
+            println!("Body:\n{}", str::from_utf8(&body).unwrap());
             println!("\n");
             future::ok(())
         });
