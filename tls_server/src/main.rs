@@ -75,8 +75,10 @@ fn run_server() -> io::Result<()> {
         }).filter_map(|x| x);
     // Build a hyper server, which serves our custom echo service.
     let request_counter = Arc::new(AtomicUsize::new(0));
-    let fut =
-        Server::builder(tls).serve(move || service_fn(|req| echo(req, request_counter.clone())));
+    let fut = Server::builder(tls).serve(move || {
+        let inner = Arc::clone(&request_counter);
+        service_fn(move |req| echo(req, Arc::clone(&inner)))
+    });
 
     // Run the future, keep going until an error occurs.
     println!("Starting to serve on https://{}.", addr);
@@ -92,6 +94,7 @@ type ResponseFuture = Box<Future<Item = Response<Body>, Error = hyper::Error> + 
 // catch-all 404 responder.
 fn echo(req: Request<Body>, counter: Arc<AtomicUsize>) -> ResponseFuture {
     counter.fetch_add(1, Ordering::Relaxed);
+    println!("{}", counter.load(Ordering::Relaxed));
     let (parts, body) = req.into_parts();
     println!("{:?}", parts);
 
