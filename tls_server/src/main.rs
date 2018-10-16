@@ -77,7 +77,7 @@ fn run_server() -> io::Result<()> {
     let request_counter = Arc::new(AtomicUsize::new(0));
     let fut = Server::builder(tls).serve(move || {
         let inner = Arc::clone(&request_counter);
-        service_fn(move |req| echo(req, Arc::clone(&inner)))
+        service_fn(move |req| echo(req, &inner))
     });
 
     // Run the future, keep going until an error occurs.
@@ -92,7 +92,7 @@ type ResponseFuture = Box<Future<Item = Response<Body>, Error = hyper::Error> + 
 
 // Custom echo service, handling two different routes and a
 // catch-all 404 responder.
-fn echo(req: Request<Body>, counter: Arc<AtomicUsize>) -> ResponseFuture {
+fn echo(req: Request<Body>, counter: &AtomicUsize) -> ResponseFuture {
     counter.fetch_add(1, Ordering::Relaxed);
     println!("{}", counter.load(Ordering::Relaxed));
     let (parts, body) = req.into_parts();
