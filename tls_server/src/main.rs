@@ -17,7 +17,8 @@ use hyper::rt::Future;
 use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use rustls::internal::pemfile;
-use std::{env, fs, io, str, sync};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{env, fs, io, str, sync, sync::Arc};
 use tokio_rustls::ServerConfigExt;
 
 fn main() {
@@ -73,7 +74,9 @@ fn run_server() -> io::Result<()> {
             }
         }).filter_map(|x| x);
     // Build a hyper server, which serves our custom echo service.
-    let fut = Server::builder(tls).serve(|| service_fn(echo));
+    let request_counter = Arc::new(AtomicUsize::new(0));
+    let fut =
+        Server::builder(tls).serve(move || service_fn(|req| echo(req, request_counter.clone())));
 
     // Run the future, keep going until an error occurs.
     println!("Starting to serve on https://{}.", addr);
@@ -87,7 +90,8 @@ type ResponseFuture = Box<Future<Item = Response<Body>, Error = hyper::Error> + 
 
 // Custom echo service, handling two different routes and a
 // catch-all 404 responder.
-fn echo(req: Request<Body>) -> ResponseFuture {
+fn echo(req: Request<Body>, counter: Arc<AtomicUsize>) -> ResponseFuture {
+    counter.fetch_add(1, Ordering::Relaxed);
     let (parts, body) = req.into_parts();
     println!("{:?}", parts);
 
