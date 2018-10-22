@@ -74,7 +74,7 @@ fn run_server() -> io::Result<()> {
             }
         }).filter_map(|x| x);
     // Build a hyper server, which serves our custom echo service.
-    let mut state = shared_state {
+    let mut state = SharedState {
         request_counter: HashMap::new(),
         service_name: "Counting".to_string(),
     };
@@ -98,19 +98,20 @@ fn run_server() -> io::Result<()> {
 // Future result: either a hyper body or an error.
 type ResponseFuture = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
 
-struct shared_state {
+struct SharedState {
     request_counter: HashMap<String, usize>,
     service_name: String,
 }
 
 // Custom echo service, handling two different routes and a
 // catch-all 404 responder.
-fn echo(req: Request<Body>, counter: &mut shared_state) -> ResponseFuture {
+fn echo(req: Request<Body>, counter: &Arc<Mutex<SharedState>>) -> ResponseFuture {
     let (parts, body) = req.into_parts();
     println!("{:?}", parts);
 
+    let mut counter = counter.lock().unwrap();
     println!("service name: {}", counter.service_name);
-    for (key, value) in counter.request_counter.into_iter() {
+    for (key, value) in &counter.request_counter {
         println!("{} : {}", key, value);
     }
 
