@@ -41,6 +41,7 @@ curl  -X POST \
       --key cert_util/client1.key \
       https://localhost:1338/echo
 
+:<<'END'
 echo
 # get request
 echo "send GET request"
@@ -54,7 +55,6 @@ curl  -X GET \
       --key cert_util/client1.key \
       https://localhost:1338
 
-:<<'END'
 echo
 # put request
 echo "send PUT request"

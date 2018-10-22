@@ -107,7 +107,7 @@ struct Record {
 fn record(state: &Arc<Mutex<SharedState>>, request: &str, content: &str) -> String {
     match request {
         "GET" => {
-            let state = state.lock().unwrap();
+            let mut state = state.lock().unwrap();
             if !state.request_counter.contains_key(&"GET".to_string()) {
                 state.request_counter.insert(
                     "GET".to_string(),
@@ -122,7 +122,7 @@ fn record(state: &Arc<Mutex<SharedState>>, request: &str, content: &str) -> Stri
             "".to_string()
         }
         "POST" => {
-            let state = state.lock().unwrap();
+            let mut state = state.lock().unwrap();
             // when entry not exist yet
             if !state.request_counter.contains_key(&"POST".to_string()) {
                 state.request_counter.insert(
@@ -143,9 +143,10 @@ fn record(state: &Arc<Mutex<SharedState>>, request: &str, content: &str) -> Stri
                 .get(&"POST".to_string())
                 .unwrap()
                 .content
+                .clone()
         }
         "OTHERS" => {
-            let state = state.lock().unwrap();
+            let mut state = state.lock().unwrap();
             if !state.request_counter.contains_key(&"OTHERS".to_string()) {
                 state.request_counter.insert(
                     "OTHERS".to_string(),
@@ -170,7 +171,7 @@ fn echo(req: Request<Body>, counter: &Arc<Mutex<SharedState>>) -> ResponseFuture
     println!("{:?}", parts);
 
     {
-        let mut counter = counter.lock().unwrap();
+        let counter = counter.lock().unwrap();
         println!("Service Name: {}", counter.service_name);
         for (key, value) in &counter.request_counter {
             println!(
@@ -195,10 +196,11 @@ fn echo(req: Request<Body>, counter: &Arc<Mutex<SharedState>>) -> ResponseFuture
         (Method::POST, "/echo") => {
             // for POST request, record the number and concatenate the content
             let entire_body = body.concat2();
-            let res = entire_body.and_then(|body| {
+            let counter = Arc::clone(counter);
+            let res = entire_body.and_then(move |body| {
                 println!("Body:\n{}", str::from_utf8(&body).unwrap());
                 println!("\n");
-                let accumulated = record(counter, "POST", str::from_utf8(&body).unwrap());
+                let accumulated = record(&counter, "POST", str::from_utf8(&body).unwrap());
                 // response with accumulated content
                 future::ok(Response::builder().body(Body::from(accumulated)).unwrap())
             });
