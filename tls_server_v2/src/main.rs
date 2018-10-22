@@ -104,36 +104,87 @@ struct Record {
     content: String,
 }
 
+fn record(state: &Arc<Mutex<SharedState>>, request: &str, content: &str) -> String {
+    match request {
+        "GET" => {
+            let state = state.lock().unwrap();
+            if !state.request_counter.contains_key(&"GET".to_string()) {
+                state.request_counter.insert(
+                    "GET".to_string(),
+                    Record {
+                        number: 1,
+                        content: content.to_string(),
+                    },
+                );
+            } else if let Some(x) = state.request_counter.get_mut(&"GET".to_string()) {
+                x.number += 1;
+            }
+            "".to_string()
+        }
+        "POST" => {
+            let state = state.lock().unwrap();
+            // when entry not exist yet
+            if !state.request_counter.contains_key(&"POST".to_string()) {
+                state.request_counter.insert(
+                    "POST".to_string(),
+                    Record {
+                        number: 1,
+                        content: content.to_string(),
+                    },
+                );
+            // already exist, update the entry, append content
+            } else if let Some(x) = state.request_counter.get_mut(&"POST".to_string()) {
+                x.number += 1;
+                x.content.push_str("\n");
+                x.content.push_str(content);
+            }
+            state
+                .request_counter
+                .get(&"POST".to_string())
+                .unwrap()
+                .content
+        }
+        "OTHERS" => {
+            let state = state.lock().unwrap();
+            if !state.request_counter.contains_key(&"OTHERS".to_string()) {
+                state.request_counter.insert(
+                    "OTHERS".to_string(),
+                    Record {
+                        number: 1,
+                        content: content.to_string(),
+                    },
+                );
+            } else if let Some(x) = state.request_counter.get_mut(&"OTHERS".to_string()) {
+                x.number += 1;
+            }
+            "".to_string()
+        }
+        _ => "".to_string(),
+    }
+}
+
 // Custom echo service, handling two different routes and a
 // catch-all 404 responder.
 fn echo(req: Request<Body>, counter: &Arc<Mutex<SharedState>>) -> ResponseFuture {
     let (parts, body) = req.into_parts();
     println!("{:?}", parts);
 
-    let mut counter = counter.lock().unwrap();
-    println!("Service Name: {}", counter.service_name);
-    for (key, value) in &counter.request_counter {
-        println!(
-            "Request Type : {} \nN0. : {} \nContent: {}\n",
-            key, value.number, value.content
-        );
+    {
+        let mut counter = counter.lock().unwrap();
+        println!("Service Name: {}", counter.service_name);
+        for (key, value) in &counter.request_counter {
+            println!(
+                "Request Type : {} \nN0. : {} \nContent: {}\n",
+                key, value.number, value.content
+            );
+        }
     }
 
     match (parts.method, parts.uri.path()) {
         // Help route.
         (Method::GET, "/") => {
             // for GET request, only count the number, ignore content
-            if !counter.request_counter.contains_key(&"GET".to_string()) {
-                counter.request_counter.insert(
-                    "GET".to_string(),
-                    Record {
-                        number: 1,
-                        content: "".to_string(),
-                    },
-                );
-            } else if let Some(x) = counter.request_counter.get_mut(&"GET".to_string()) {
-                x.number += 1;
-            }
+            let _ = record(counter, "GET", "");
             Box::new(future::ok(
                 Response::builder()
                     .body(Body::from("Try POST /echo\n"))
@@ -147,49 +198,16 @@ fn echo(req: Request<Body>, counter: &Arc<Mutex<SharedState>>) -> ResponseFuture
             let res = entire_body.and_then(|body| {
                 println!("Body:\n{}", str::from_utf8(&body).unwrap());
                 println!("\n");
-                // when entry not exist yet
-                if !counter.request_counter.contains_key(&"POST".to_string()) {
-                    counter.request_counter.insert(
-                        "POST".to_string(),
-                        Record {
-                            number: 1,
-                            content: String::from_utf8(body.to_vec()).unwrap(),
-                        },
-                    );
-                // update the entry, append content
-                } else if let Some(x) = counter.request_counter.get_mut(&"POST".to_string()) {
-                    x.number += 1;
-                    x.content.push_str("\n");
-                    x.content.push_str(str::from_utf8(&body).unwrap());
-                }
+                let accumulated = record(counter, "POST", str::from_utf8(&body).unwrap());
                 // response with accumulated content
-                future::ok(
-                    Response::builder()
-                        .body(Body::from(
-                            counter
-                                .request_counter
-                                .get(&"POST".to_string())
-                                .unwrap()
-                                .content,
-                        )).unwrap(),
-                )
+                future::ok(Response::builder().body(Body::from(accumulated)).unwrap())
             });
             Box::new(res)
         }
         // Catch-all 404.
         _ => {
             // for other types of request, only count the number, ignore content
-            if !counter.request_counter.contains_key(&"OTHERS".to_string()) {
-                counter.request_counter.insert(
-                    "OTHERS".to_string(),
-                    Record {
-                        number: 1,
-                        content: "".to_string(),
-                    },
-                );
-            } else if let Some(x) = counter.request_counter.get_mut(&"OTHERS".to_string()) {
-                x.number += 1;
-            }
+            let _ = record(counter, "OTHER", "");
             Box::new(future::ok(
                 Response::builder()
                     .status(StatusCode::NOT_FOUND)
