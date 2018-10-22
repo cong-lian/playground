@@ -207,7 +207,7 @@ fn echo(req: Request<Body>, counter: &Arc<Mutex<SharedState>>) -> ResponseFuture
         // Catch-all 404.
         _ => {
             // for other types of request, only count the number, ignore content
-            let _ = record(counter, "OTHER", "");
+            let _ = record(counter, "OTHERS", "");
             Box::new(future::ok(
                 Response::builder()
                     .status(StatusCode::NOT_FOUND)
