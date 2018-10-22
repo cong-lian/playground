@@ -3,5 +3,5 @@
 members = [
     "tls_server",
     "tls_client",
+    "tls_server_v2",
 ]
-
