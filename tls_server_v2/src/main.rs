@@ -74,13 +74,10 @@ fn run_server() -> io::Result<()> {
             }
         }).filter_map(|x| x);
     // Build a hyper server, which serves our custom echo service.
-    let mut state = SharedState {
+    let state = SharedState {
         request_counter: HashMap::new(),
         service_name: "Counting".to_string(),
     };
-    state.request_counter.insert("GET".to_string(), 0);
-    state.request_counter.insert("POST".to_string(), 0);
-    state.request_counter.insert("OTHERS".to_string(), 0);
 
     let request_counter = Arc::new(Mutex::new(state));
     let fut = Server::builder(tls).serve(move || {
@@ -99,8 +96,12 @@ fn run_server() -> io::Result<()> {
 type ResponseFuture = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
 
 struct SharedState {
-    request_counter: HashMap<String, usize>,
+    request_counter: HashMap<String, Record>,
     service_name: String,
+}
+struct Record {
+    number: usize,
+    content: String,
 }
 
 // Custom echo service, handling two different routes and a
@@ -110,16 +111,28 @@ fn echo(req: Request<Body>, counter: &Arc<Mutex<SharedState>>) -> ResponseFuture
     println!("{:?}", parts);
 
     let mut counter = counter.lock().unwrap();
-    println!("service name: {}", counter.service_name);
+    println!("Service Name: {}", counter.service_name);
     for (key, value) in &counter.request_counter {
-        println!("{} : {}", key, value);
+        println!(
+            "Request Type : {} \nN0. : {} \nContent: {}\n",
+            key, value.number, value.content
+        );
     }
 
     match (parts.method, parts.uri.path()) {
         // Help route.
         (Method::GET, "/") => {
-            if let Some(x) = counter.request_counter.get_mut(&"GET".to_string()) {
-                *x += 1;
+            // for GET request, only count the number, ignore content
+            if !counter.request_counter.contains_key(&"GET".to_string()) {
+                counter.request_counter.insert(
+                    "GET".to_string(),
+                    Record {
+                        number: 1,
+                        content: "".to_string(),
+                    },
+                );
+            } else if let Some(x) = counter.request_counter.get_mut(&"GET".to_string()) {
+                x.number += 1;
             }
             Box::new(future::ok(
                 Response::builder()
@@ -129,21 +142,53 @@ fn echo(req: Request<Body>, counter: &Arc<Mutex<SharedState>>) -> ResponseFuture
         }
         // Echo service route.
         (Method::POST, "/echo") => {
-            if let Some(x) = counter.request_counter.get_mut(&"POST".to_string()) {
-                *x += 1;
-            }
+            // for POST request, record the number and concatenate the content
             let entire_body = body.concat2();
             let res = entire_body.and_then(|body| {
                 println!("Body:\n{}", str::from_utf8(&body).unwrap());
                 println!("\n");
-                future::ok(Response::builder().body(Body::from("/echo\n")).unwrap())
+                // when entry not exist yet
+                if !counter.request_counter.contains_key(&"POST".to_string()) {
+                    counter.request_counter.insert(
+                        "POST".to_string(),
+                        Record {
+                            number: 1,
+                            content: String::from_utf8(body.to_vec()).unwrap(),
+                        },
+                    );
+                // update the entry, append content
+                } else if let Some(x) = counter.request_counter.get_mut(&"POST".to_string()) {
+                    x.number += 1;
+                    x.content.push_str("\n");
+                    x.content.push_str(str::from_utf8(&body).unwrap());
+                }
+                // response with accumulated content
+                future::ok(
+                    Response::builder()
+                        .body(Body::from(
+                            counter
+                                .request_counter
+                                .get(&"POST".to_string())
+                                .unwrap()
+                                .content,
+                        )).unwrap(),
+                )
             });
             Box::new(res)
         }
         // Catch-all 404.
         _ => {
-            if let Some(x) = counter.request_counter.get_mut(&"OTHERS".to_string()) {
-                *x += 1;
+            // for other types of request, only count the number, ignore content
+            if !counter.request_counter.contains_key(&"OTHERS".to_string()) {
+                counter.request_counter.insert(
+                    "OTHERS".to_string(),
+                    Record {
+                        number: 1,
+                        content: "".to_string(),
+                    },
+                );
+            } else if let Some(x) = counter.request_counter.get_mut(&"OTHERS".to_string()) {
+                x.number += 1;
             }
             Box::new(future::ok(
                 Response::builder()
